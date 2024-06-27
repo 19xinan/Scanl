@@ -25,21 +25,32 @@ func main() {
       ░  ░ ░            ░  ░         ░     ░  ░
          ░
 	`)
+
 	// 解析命令行参数
 	subnet := flag.String("h", "", "Target subnet for scanning (e.g., 192.168.10.0/24)")
 	allPorts := flag.Bool("all", false, "Scan all ports (0-65535)")
 	threads := flag.Int("t", 100, "Number of concurrent threads")
 	passwordFile := flag.String("pwd", "pass.txt", "Password file for bruteforce")
+	outputFile := flag.String("output", "scan_results.txt", "Output file for scan results")
 	flag.Parse()
 
 	if *subnet == "" {
-		fmt.Println("Usage: go run main.go -subnet <target_subnet> [-all] [-threads N] [-passfile pass.txt]")
+		fmt.Println("Usage: go run main.go -subnet <target_subnet> [-all] [-threads N] [-passfile pass.txt] [-output scan_results.txt]")
 		os.Exit(1)
 	}
 
+	// 打开输出文件
+	outputFileHandle, err := os.OpenFile(*outputFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		fmt.Printf("Error opening output file: %v\n", err)
+		os.Exit(1)
+	}
+	defer outputFileHandle.Close()
+
+	// 解析网段
 	ips, err := expandCIDR(*subnet)
 	if err != nil {
-		fmt.Printf("Error parsing subnet: %v\n", err)
+		fmt.Fprintf(outputFileHandle, "Error parsing subnet: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -47,6 +58,7 @@ func main() {
 	var mutex sync.Mutex
 	var aliveHosts []string
 
+	// 检测存活主机并输出到终端和文件
 	for _, ip := range ips {
 		wg.Add(1)
 		go func(ip string) {
@@ -55,15 +67,21 @@ func main() {
 				mutex.Lock()
 				aliveHosts = append(aliveHosts, ip)
 				mutex.Unlock()
+				fmt.Printf("Host %s is alive\n", ip)
+				fmt.Fprintf(outputFileHandle, "Host %s is alive\n", ip)
+			} else {
+				fmt.Printf("Host %s is not alive\n", ip)
+				fmt.Fprintf(outputFileHandle, "Host %s is not alive\n", ip)
 			}
 		}(ip)
 	}
 
 	wg.Wait()
 
-	fmt.Println("Alive hosts in subnet:")
+	// 输出存活主机到文件
+	fmt.Fprintln(outputFileHandle, "Alive hosts in subnet:")
 	for _, ip := range aliveHosts {
-		fmt.Println(ip)
+		fmt.Fprintln(outputFileHandle, ip)
 	}
 
 	var ports []int
@@ -76,29 +94,38 @@ func main() {
 		ports = []int{21, 22, 23, 25, 53, 80, 110, 119, 123, 143, 161, 194, 443, 445, 465, 587, 993, 995, 1433, 1521, 1723, 3306, 3389, 5900, 8080} // 精简端口列表
 	}
 
+	// 扫描主机并输出结果到终端和文件
 	for _, ip := range aliveHosts {
+		fmt.Fprintf(outputFileHandle, "Scanning host: %s\n", ip)
 		fmt.Printf("Scanning host: %s\n", ip)
 		results := core.ScanPorts(ip, ports, *threads)
 
+		fmt.Fprintf(outputFileHandle, "Open ports on host %s:\n", ip)
 		fmt.Printf("Open ports on host %s:\n", ip)
 		for port, service := range results {
 			if service != "Closed" {
+				fmt.Fprintf(outputFileHandle, "Port %d: %s\n", port, service)
 				fmt.Printf("Port %d: %s\n", port, service)
 			}
 		}
 
 		// 默认启用暴力破解模块，针对开启了SSH或RDP的端口
 		if service, found := results[22]; found && service == "SSH" {
+			fmt.Fprintln(outputFileHandle, "Starting bruteforce attack on SSH...")
 			fmt.Println("Starting bruteforce attack on SSH...")
 			bruteforce.Bruteforce(ip, 22, *passwordFile)
 		}
 		if service, found := results[3389]; found && service == "RDP" {
+			fmt.Fprintln(outputFileHandle, "Starting bruteforce attack on RDP...")
 			fmt.Println("Starting bruteforce attack on RDP...")
 			bruteforce.Bruteforce(ip, 3389, *passwordFile)
 		}
 
+		fmt.Fprintln(outputFileHandle, "---------------------------------------------")
 		fmt.Println("---------------------------------------------")
 	}
+
+	fmt.Printf("Scan results saved to %s\n", *outputFile)
 }
 
 // expandCIDR 解析网段，生成所有 IP 地址
@@ -142,11 +169,6 @@ func isHostAlive(ip string) bool {
 		return false
 	}
 
-	defer func(conn net.Conn) {
-		err := conn.Close()
-		if err != nil {
-
-		}
-	}(conn)
+	defer conn.Close()
 	return true
 }
