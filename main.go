@@ -35,7 +35,7 @@ func main() {
 	flag.Parse()
 
 	if *subnet == "" {
-		fmt.Println("Usage: go run main.go -subnet <target_subnet> [-all] [-threads N] [-passfile pass.txt] [-output scan_results.txt]")
+		fmt.Println("Usage: ScanL.exe -h <target_subnet> [-all] [-t N] [-pwd pass.txt] [-output scan_results.txt]")
 		os.Exit(1)
 	}
 
