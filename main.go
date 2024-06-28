@@ -26,14 +26,14 @@ func main() {
          ░
 	`)
 
-	// 解析命令行参数
+	// 解析命令行参数：-h网段、-all全端口、-t线程数、-pwd指定密码文件、-output指定输出文件名（不指定默认输出）
 	subnet := flag.String("h", "", "Target subnet for scanning (e.g., 192.168.10.0/24)")
 	allPorts := flag.Bool("all", false, "Scan all ports (0-65535)")
 	threads := flag.Int("t", 100, "Number of concurrent threads")
 	passwordFile := flag.String("pwd", "pass.txt", "Password file for bruteforce")
 	outputFile := flag.String("output", "scan_results.txt", "Output file for scan results")
 	flag.Parse()
-
+	//检查网段
 	if *subnet == "" {
 		fmt.Println("Usage: ScanL.exe -h <target_subnet> [-all] [-t N] [-pwd pass.txt] [-output scan_results.txt]")
 		os.Exit(1)
@@ -91,7 +91,7 @@ func main() {
 			ports[i] = i
 		}
 	} else {
-		ports = []int{21, 22, 23, 25, 53, 80, 110, 119, 123, 143, 161, 194, 443, 445, 465, 587, 993, 995, 1433, 1521, 1723, 3306, 3389, 5900, 8080} // 精简端口列表
+		ports = []int{21, 22, 23, 25, 53, 80, 110, 119, 123, 143, 161, 194, 443, 445, 465, 587, 993, 995, 1433, 1521, 1723, 3306, 3389, 5900, 8080, 8443, 8888, 9090, 7001, 9999, 6379, 9200, 9300, 27017} // 精简端口列表
 	}
 
 	// 扫描主机并输出结果到终端和文件
@@ -115,11 +115,12 @@ func main() {
 			fmt.Println("Starting bruteforce attack on SSH...")
 			bruteforce.Bruteforce(ip, 22, *passwordFile)
 		}
-		if service, found := results[3389]; found && service == "RDP" {
-			fmt.Fprintln(outputFileHandle, "Starting bruteforce attack on RDP...")
-			fmt.Println("Starting bruteforce attack on RDP...")
-			bruteforce.Bruteforce(ip, 3389, *passwordFile)
-		}
+		//RDP实现有问题暂存
+		//if service, found := results[3389]; found && service == "RDP" {
+		//	fmt.Fprintln(outputFileHandle, "Starting bruteforce attack on RDP...")
+		//	fmt.Println("Starting bruteforce attack on RDP...")
+		//	bruteforce.Bruteforce(ip, 3389, *passwordFile)
+		//}
 
 		fmt.Fprintln(outputFileHandle, "---------------------------------------------")
 		fmt.Println("---------------------------------------------")
@@ -152,6 +153,7 @@ func expandCIDR(cidr string) ([]string, error) {
 	return ips, nil
 }
 
+// IP地址递增
 func inc(ip net.IP) {
 	for j := len(ip) - 1; j >= 0; j-- {
 		ip[j]++
